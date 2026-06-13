@@ -1,5 +1,3 @@
-// Prisma schema for Expensify Issue Notifier
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,103 +5,44 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
-  // For production PostgreSQL:
-  // provider = "postgresql"
 }
 
-model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  passwordHash   String
-  githubUsername String?
-  githubTokenEnc String?  // AES-256 encrypted PAT
-  dailyLimit     Int      @default(10)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  watchedLabels  WatchedLabel[]
-  notifications  Notification[]
-  proposals      Proposal[]
-  pollState      PollState?
+model Config {
+  id                  String   @id @default("singleton")
+  notificationEmail   String   @default("")
+  watchedRepo         String   @default("Expensify/App")
+  watchedLabel        String   @default("Help Wanted")
+  issueLimit          Int      @default(4)
+  githubToken         String?
+  lastEtag            String?
+  pollIntervalSeconds Int      @default(60)
+  dailySelectedCount  Int      @default(0)
+  dailyResetDate      String   @default("")
+  isRunning           Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
 }
 
-model WatchedLabel {
-  id        String   @id @default(cuid())
-  userId    String
-  labelName String
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, labelName])
-}
-
-model Issue {
-  id                String   @id @default(cuid())
-  githubIssueNumber Int      @unique
+model NotificationRecord {
+  id                String      @id @default(cuid())
+  githubIssueNumber Int         @unique
   title             String
   url               String
-  labels            String   // JSON array stored as string
-  createdAt         DateTime // GitHub issue creation time
-  labelledAt        DateTime? // When the matched label was added
-  discoveredAt      DateTime @default(now())
-
-  notifications Notification[]
-  proposals     Proposal[]
+  repoFullName      String
+  matchedLabel      String
+  status            NotifStatus @default(PENDING)
+  attempts          Int         @default(0)
+  lastAttemptAt     DateTime?
+  notifiedAt        DateTime?
+  hasPendingUpdate  Boolean     @default(false)
+  updateEmailCount  Int         @default(0)
+  lastUpdateEmailAt DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 }
 
-model Notification {
-  id       String   @id @default(cuid())
-  userId   String
-  issueId  String
-  sentAt   DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  issue Issue @relation(fields: [issueId], references: [id])
-
-  @@unique([userId, issueId])
-}
-
-model Proposal {
-  id          String         @id @default(cuid())
-  userId      String
-  issueId     String
-  status      ProposalStatus @default(PENDING)
-  commentId   Int?           // GitHub comment ID
-  postedAt    DateTime?
-  selectedAt  DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  issue        Issue         @relation(fields: [issueId], references: [id])
-  timelinePost TimelinePost?
-
-  @@unique([userId, issueId])
-}
-
-model TimelinePost {
-  id           String   @id @default(cuid())
-  proposalId   String   @unique
-  commentId    Int?     // GitHub comment ID
-  timelineText String
-  postedAt     DateTime @default(now())
-
-  proposal Proposal @relation(fields: [proposalId], references: [id])
-}
-
-model PollState {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  lastPolledAt  DateTime @default(now())
-  lastCheckedAt DateTime @default(now()) // For proposal monitor
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-enum ProposalStatus {
+enum NotifStatus {
   PENDING
-  SELECTED
-  REJECTED
+  SENT
   FAILED
 }

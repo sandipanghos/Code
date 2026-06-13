@@ -1,23 +1,4 @@
 version: '3.9'
 
-# Local development services
-# Start with: docker compose up -d
-
-services:
-  redis:
-    image: redis:7-alpine
-    container_name: expensify-notifier-redis
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-volumes:
-  redis-data:
-    driver: local
+# No services required — app uses SQLite only.
+# Run locally with: npm run dev

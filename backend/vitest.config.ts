@@ -6,6 +6,12 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
+    globalSetup: ['./tests/global-setup.ts'],
+    include: [
+      'tests/unit/**/*.test.ts',
+      'tests/integration/**/*.test.ts',
+      'tests/performance/**/*.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -15,6 +21,8 @@ export default defineConfig({
         'tests/',
         'prisma/',
         'src/server.ts',
+        'src/jobs/schedulers.ts',
+        '**/*.config.*',
         '**/*.d.ts',
       ],
       thresholds: {
@@ -24,7 +32,6 @@ export default defineConfig({
         lines: 80,
       },
     },
-    include: ['tests/**/*.test.ts'],
   },
   resolve: {
     alias: {

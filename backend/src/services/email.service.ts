@@ -14,31 +14,53 @@ export interface IssueEmailData {
   issueTitle: string;
   issueUrl: string;
   issueNumber: number;
-  matchedLabels: string[];
+  matchedLabel: string;
+  repoFullName: string;
+  isUpdate?: boolean;
+  updateCount?: number;
 }
 
 export async function sendIssueNotification(data: IssueEmailData): Promise<void> {
-  const labelsHtml = data.matchedLabels.map((l) => `<span style="background:#e1e4e8;border-radius:3px;padding:2px 6px;font-size:12px;">${l}</span>`).join(' ');
+  const subject = data.isUpdate
+    ? `[Update #${data.updateCount}] Issue #${data.issueNumber}: ${data.issueTitle}`
+    : `[New Issue] #${data.issueNumber}: ${data.issueTitle}`;
+
+  const headingText = data.isUpdate
+    ? `Issue Update — ${data.repoFullName}`
+    : `New Matching Issue — ${data.repoFullName}`;
+
+  const badgeColor = data.isUpdate ? '#e36209' : '#0969da';
+  const badgeText = data.isUpdate ? `Update #${data.updateCount}` : 'New Issue';
 
   await transporter.sendMail({
-    from: `"Expensify Notifier" <${env.SMTP_USER}>`,
+    from: `"GitHub Issue Notifier" <${env.SMTP_USER}>`,
     to: data.to,
-    subject: `[Expensify] New Issue #${data.issueNumber}: ${data.issueTitle}`,
+    subject,
     html: `
-      <div style="font-family:sans-serif;max-width:600px;">
-        <h2 style="color:#1a1a1a;">New Matching Issue Found</h2>
-        <p><strong>Issue #${data.issueNumber}</strong></p>
-        <h3 style="margin:8px 0;">
-          <a href="${data.issueUrl}" style="color:#0969da;text-decoration:none;">${data.issueTitle}</a>
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:${badgeColor};color:white;padding:4px 10px;border-radius:4px;display:inline-block;font-size:12px;font-weight:600;margin-bottom:12px;">${badgeText}</div>
+        <h2 style="color:#1a1a1a;margin-top:0;">${headingText}</h2>
+        <h3 style="margin:0 0 8px;">
+          <a href="${data.issueUrl}" style="color:#0969da;text-decoration:none;">
+            #${data.issueNumber}: ${data.issueTitle}
+          </a>
         </h3>
-        <p>Matched labels: ${labelsHtml}</p>
-        <a href="${data.issueUrl}" style="display:inline-block;background:#0969da;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;margin-top:12px;">View Issue on GitHub</a>
-        <hr style="margin-top:24px;border:none;border-top:1px solid #eee;">
-        <p style="color:#666;font-size:12px;">Expensify Issue Notifier — <a href="${env.API_BASE_URL.replace(':3001', ':3000')}/settings">Manage preferences</a></p>
+        <p style="color:#555;margin:4px 0;">
+          Label: <span style="background:#e1e4e8;border-radius:3px;padding:2px 8px;font-size:12px;">${data.matchedLabel}</span>
+        </p>
+        <p style="color:#555;margin:4px 0;">
+          Repo: <strong>${data.repoFullName}</strong>
+        </p>
+        <a href="${data.issueUrl}" style="display:inline-block;background:${badgeColor};color:white;padding:8px 16px;border-radius:6px;text-decoration:none;margin-top:16px;">
+          View on GitHub
+        </a>
       </div>
     `,
-    text: `New Expensify Issue #${data.issueNumber}: ${data.issueTitle}\n\nView: ${data.issueUrl}\nMatched labels: ${data.matchedLabels.join(', ')}`,
+    text: `${headingText}\n\n#${data.issueNumber}: ${data.issueTitle}\nLabel: ${data.matchedLabel}\nRepo: ${data.repoFullName}\n\n${data.issueUrl}`,
   });
 
-  logger.info({ to: data.to, issueNumber: data.issueNumber }, 'Issue notification email sent');
+  logger.info(
+    { to: data.to, issueNumber: data.issueNumber, isUpdate: data.isUpdate },
+    'Notification email sent'
+  );
 }

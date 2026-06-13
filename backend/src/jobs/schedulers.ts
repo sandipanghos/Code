@@ -1,35 +1,52 @@
-import cron from 'node-cron';
-import { env } from '../utils/env.js';
 import { logger } from '../utils/logger.js';
-import { GithubPollerService } from '../services/github-poller.service.js';
-import { ProposalMonitorService } from '../services/proposal-monitor.service.js';
+import { EventsPollerService } from '../services/events-poller.service.js';
+import { NotificationSenderService } from '../services/notification-sender.service.js';
 
-export function startSchedulers() {
-  const pollerInterval = `*/${env.POLL_INTERVAL_MINUTES} * * * *`;
-  const monitorInterval = `*/${env.PROPOSAL_CHECK_INTERVAL_MINUTES} * * * *`;
+const EMAIL_SENDER_INTERVAL_MS = 20_000;
 
-  // Issue poller
-  cron.schedule(pollerInterval, async () => {
-    logger.info('Running GitHub issue poller');
+let emailSenderTimer: ReturnType<typeof setInterval> | null = null;
+let pollerTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function startSchedulers(): void {
+  startEventsPoller();
+  startEmailSender();
+  logger.info('Schedulers started (Events poller: dynamic interval, Email sender: 20s)');
+}
+
+function startEventsPoller(): void {
+  async function runAndReschedule() {
     try {
-      await GithubPollerService.poll();
+      const nextIntervalSeconds = await EventsPollerService.poll();
+      logger.debug({ nextIntervalSeconds }, 'Events poller cycle complete, rescheduling');
+      pollerTimer = setTimeout(runAndReschedule, nextIntervalSeconds * 1000);
     } catch (err) {
-      logger.error(err, 'Poller error');
+      logger.error(err, 'Unhandled error in events poller, retrying in 60s');
+      pollerTimer = setTimeout(runAndReschedule, 60_000);
     }
-  });
+  }
 
-  // Proposal monitor
-  cron.schedule(monitorInterval, async () => {
-    logger.info('Running proposal monitor');
+  // First run after a short delay to let the server finish starting
+  pollerTimer = setTimeout(runAndReschedule, 2_000);
+}
+
+function startEmailSender(): void {
+  emailSenderTimer = setInterval(async () => {
     try {
-      await ProposalMonitorService.check();
+      await NotificationSenderService.send();
     } catch (err) {
-      logger.error(err, 'Monitor error');
+      logger.error(err, 'Unhandled error in email sender');
     }
-  });
+  }, EMAIL_SENDER_INTERVAL_MS);
+}
 
-  logger.info(
-    { pollerInterval, monitorInterval },
-    'Schedulers started'
-  );
+export function stopSchedulers(): void {
+  if (pollerTimer) {
+    clearTimeout(pollerTimer);
+    pollerTimer = null;
+  }
+  if (emailSenderTimer) {
+    clearInterval(emailSenderTimer);
+    emailSenderTimer = null;
+  }
+  logger.info('Schedulers stopped');
 }
