@@ -71,7 +71,7 @@ jobs:
           CORS_ORIGIN: 'http://localhost:3000'
         run: npm run test:api
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         if: always()
         with:
           directory: backend/coverage
@@ -90,7 +90,7 @@ jobs:
       - working-directory: frontend
         run: npm run test
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         if: always()
         with:
           directory: frontend/coverage
